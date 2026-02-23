@@ -15,9 +15,63 @@ Start:
 
 old_int9h       dd ?  
 
+;----------------------------------------------------------------------
+;New 09h function (calls real 09h at th e end)
+;Entry:     --
+;Exit:      --
+;Distr:     --
+;Expected: label EORP after this procedure
+;----------------------------------------------------------------------
+my_kb_int       proc
+                push ax
+                push bx
+                push cx
+                push dx
+                push si
+                push di
+                push ds
+                push es
+				push bp 
+
+                mov ax, cs
+                mov ds, ax
+
+                mov ax, 0b800h
+                mov es, ax
+                mov bx, 690h          
+                mov ah, atr
+                in al, 60h
+
+				cmp al, 87d
+				jnz skip_regs
+
+				call set_regs_val
+                call print_text
+
+				push 14d 
+				push 7d
+				push offset sum_buf
+				push 2cah
+				call print_bframe
+				add sp, 8
+skip_regs:
+				pop bp 
+				pop es
+                pop ds
+                pop di
+                pop si
+                pop dx
+                pop cx
+                pop bx
+                pop ax
+
+                jmp dword ptr cs:[old_int9h]
+                ret
+                endp
+
 ;---------------------------------------------------------------------------
-;Prints comand string text to screen
-;Entry:		--
+;Prints string text to screen
+;Entry:		ES --> videomemory segment
 ;Exit:		--
 ;Destr:		SI, CX, AX, BX
 ;---------------------------------------------------------------------------
@@ -173,52 +227,168 @@ halfbyte2ascii	proc
 
 @@ok:           ret
 				endp
+				
 
+sum_buf:		db '123456789'
 
-;----------------------------------------------------------------------
-;New 09h function (calls real 09h at th e end)
-;Entry:     --
-;Exit:      --
-;Distr:     --
-;Expected: label EORP after this procedure
-;----------------------------------------------------------------------
-my_kb_int       proc
-                push ax
-                push bx
-                push cx
-                push dx
-                push si
-                push di
-                push ds
-                push es
+;-------------------------------------------------------------------------
+;Prints beautiful frame with parameters 
+;Entry: 	ss:[sp + 2] --> text start place
+;			ss:[sp + 4] --> symbols buffer
+;			ss:[sp + 6] == str_max_len
+;			ss:[sp + 8] == n_strings + 1
+;			es --> videomem
+;Exit:		--
+;Distr:		all regs (without sp)
+;Expected:  sumbols buffer has 9 symbols
+;-------------------------------------------------------------------------
 
-                mov ax, cs
-                mov ds, ax
+print_bframe	proc
 
-                mov ax, 0b800h
-                mov es, ax
-                mov bx, 690h          
-                mov ah, atr
-                in al, 60h
+				mov bp, sp
 
-				cmp al, 87d
-				jnz skip_regs
+				mov bx, ss:[bp + 2]
+				mov si, ss:[bp + 4]
 
-				call set_regs_val
-                call print_text
-skip_regs:
-                pop es
-                pop ds
-                pop di
-                pop si
-                pop dx
-                pop cx
-                pop bx
-                pop ax
+				sub bx, 326d					; first_param
+				mov al, [si]
+				mov es:[bx], al
+				mov byte ptr es:[bx + 1], atr
+				push bx
+				add bx, 2
 
-                jmp dword ptr cs:[old_int9h]
-                ret
-                endp
+				mov al, [si + 1]				;second_param
+				mov cx, ss:[bp + 6]
+				add cx, 4
+				push bx
+				call pr_sum_str
+
+				mov al, [si + 2]				;third param
+				mov es:[bx], al
+				mov byte ptr es:[bx + 1], atr
+
+				pop bx							;5th param
+				add bx, 160d
+				mov al, [si + 4]
+				mov cx, ss:[bp + 6]
+				add cx, 4
+				call pr_sum_str
+
+				mov cx, ss:[bp + 8]
+				inc cx	
+				pop bx
+				add bx, 160d
+				push bx
+				mov di, cx
+				mov al, [si + 3]				;4th param
+				call pr_sum_col
+				pop bx
+				push bx
+				mov cx, di 
+				mov dx, ss:[bp + 6]
+				shl dx, 1
+				add dx, 10d
+				add bx, dx 
+				mov al, [si + 5]
+				call pr_sum_col
+
+				pop bx 
+				add bx, 2
+				mov al, [si + 4]
+				mov cx, di 
+				push bx
+				push bx
+				call pr_sum_col
+
+				pop bx 
+				add bx, 2
+				push bx
+				mov cx, di
+				call pr_sum_col
+
+				pop bx
+				mov dx, ss:[bp + 6]
+				inc dx
+				shl dx, 1
+				add bx, dx
+				mov cx, di
+				push bx
+				call pr_sum_col 
+
+				pop bx 
+				add bx, 2
+				mov cx, di
+				call pr_sum_col
+                                                    
+				pop bx ; from str 324
+				mov ax, ss:[bp + 8]
+				mov dl, 160d
+				mul dl
+				add bx, ax
+				push bx
+
+				mov al, [si + 4]
+				mov cx, ss:[bp + 6]
+				add cx, 4
+				mov di, cx
+				call pr_sum_str
+				pop bx
+
+				add bx, 158d
+				mov al, [si + 6]
+				mov es:[bx], al
+				mov byte ptr es:[bx + 1], atr 
+				add bx, 2
+
+				mov al, [si + 7]
+				mov cx, di
+				call pr_sum_str
+
+				mov al, [si + 8]
+				mov es:[bx], al
+				mov byte ptr es:[bx + 1], atr 
+
+				ret
+				endp
+
+;---------------------------------------------------------------------------
+;Prints row of symbols
+;Entry:		ES:BX --> start of row
+;			CX  == n symbols
+;			AL  == symbol
+;Exit:		--
+;Distr:		BX, CX
+;---------------------------------------------------------------------------
+
+pr_sum_str		proc
+metka2:
+				mov es:[bx], al
+				inc bx
+				mov byte ptr es:[bx], 04h
+				inc bx
+				loop metka2
+
+				ret
+				endp
+
+;---------------------------------------------------------------------------
+;Prints column of sumbols
+;Entry:		ES:BX --> start of column
+;			CX  == n symbols
+;			AL  == symbol
+;Exit:		--
+;Distr:		BX, CX
+;---------------------------------------------------------------------------	
+
+pr_sum_col		proc
+metka4:
+				mov es:[bx], al
+				mov byte ptr es:[bx + 01], 04h
+				add bx, 00a0h
+				loop metka4
+
+				ret
+				endp
 
 EORP:              
 
