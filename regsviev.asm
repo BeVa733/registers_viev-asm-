@@ -3,8 +3,6 @@
 
 org 100h
 
-CR		equ 0dh
-LF		equ 0ah
 atr		equ 04h
 
 Start:
@@ -12,8 +10,6 @@ Start:
 
                 mov ah, 4ch 
                 int 21h
-
-old_int9h       dd ?  
 
 ;----------------------------------------------------------------------
 ;New 09h function (calls real 09h at th e end)
@@ -23,6 +19,7 @@ old_int9h       dd ?
 ;Expected: label EORP after this procedure
 ;----------------------------------------------------------------------
 my_kb_int       proc
+
                 push ax
                 push bx
                 push cx
@@ -41,9 +38,13 @@ my_kb_int       proc
                 mov bx, 690h          
                 mov ah, atr
                 in al, 60h
+				; mov es:[bx], ax
 
 				cmp al, 87d
 				jnz skip_regs
+
+				mov di, offset save_buffer
+				call video_cpy
 
 				call set_regs_val
                 call print_text
@@ -54,8 +55,27 @@ my_kb_int       proc
 				push 2cah
 				call print_bframe
 				add sp, 8
+
+				mov di, offset draw_buffer
+				call video_cpy
+
+				mov cs:[active_flag], 1
+
 skip_regs:
-				pop bp 
+				in al, 60h 
+				cmp al, 82d
+				jne skip_clean
+				
+				mov al, 128d
+				out 60h, al
+
+				cmp cs:[active_flag], 0
+				je skip_clean
+
+				call clean_place
+				mov cs:[active_flag], 0
+
+skip_clean:		pop bp 
 				pop es
                 pop ds
                 pop di
@@ -68,6 +88,135 @@ skip_regs:
                 jmp dword ptr cs:[old_int9h]
                 ret
                 endp
+
+;------------------------------------------------------------------------
+;Copy save_buffer to videoemory
+;Entry:		--
+;Exit:		--
+;Distr:		DS, CX, SI, DI
+;------------------------------------------------------------------------
+clean_place		proc 
+
+				mov cx, cs 
+				mov ds, cx
+				mov si, offset save_buffer
+
+				mov cx, 0b800h
+				mov es, cx 
+				mov di, 0 
+
+				mov cx, 4000
+				rep movsb
+
+				ret 
+				endp 
+
+;------------------------------------------------------------------------
+;Copies videomem to buffer
+;Entry:		cs:di--> destination buffer
+;Exit:		--
+;Distr:
+;------------------------------------------------------------------------
+video_cpy		proc 
+
+				push ds
+				push es
+
+				mov cx, 0b800h
+				mov ds, cx
+				mov si, 0
+
+				mov cx, cs
+				mov es, cx 
+				
+				mov cx, 4000
+				rep movsb
+
+				pop es 
+				pop ds
+				ret 
+				endp 
+
+
+
+;------------------------------------------------------------------------
+;Actualize save and draw buffer
+;Entry:		--
+;Exit:		--
+;Distr:
+;------------------------------------------------------------------------
+act_buffers		proc 
+
+				mov cx, cs 
+				mov ds, cx
+				mov si, offset draw_buffer
+				mov bx, offset save_buffer
+
+				mov cx, 0b800h
+				mov es, cx 
+				mov di, 0 
+				
+				mov cx, 4000
+
+@@cycle:		mov al, es:[di]
+				mov ah, [si]
+				cmp al, ah 
+				je @@cont
+
+				mov [si], al
+				mov [bx], al
+
+@@cont:			inc di
+				inc si 
+				inc bx
+
+				loop @@cycle
+
+				ret 
+				endp
+
+;------------------------------------------------------------------------
+;New 08h interrupt
+;Entry:     --
+;Exit:      --
+;Distr:     --
+;Expected: label EORP after this procedure
+;------------------------------------------------------------------------
+
+my_timer_int	proc
+
+				push ax
+				push bx
+				push cx
+				push dx
+				push si
+				push di
+				push ds
+				push es
+				push bp
+
+				mov ax, cs
+                mov ds, ax
+
+				cmp active_flag, 1
+    			jne timer_exit
+
+				call act_buffers
+
+timer_exit:
+				pop bp
+				pop es
+				pop ds
+				pop di
+				pop si
+				pop dx
+				pop cx
+				pop bx
+				pop ax
+
+				jmp dword ptr cs:[old_int8h]
+				endp
+
 
 ;---------------------------------------------------------------------------
 ;Prints string text to screen
@@ -390,6 +539,13 @@ metka4:
 				ret
 				endp
 
+
+old_int9h       dd ?
+old_int8h       dd ?
+active_flag     db 0
+save_buffer     db 4000 dup (?) 		;442 - size of frame in bytes (13*17*2)
+draw_buffer     db 4000 dup (?)
+
 EORP:              
 
 ;--------------------------------------------------------------------------
@@ -413,6 +569,16 @@ install         proc
 
                 cli                             ;set new 09h function
                 mov es:[bx], offset my_kb_int   
+                mov es:[bx+2], cs
+                sti
+
+				mov bx, 4 * 8					;set new 08h
+                mov ax, es:[bx]
+                mov word ptr [old_int8h], ax
+                mov ax, es:[bx+2]
+                mov word ptr [old_int8h+2], ax
+                cli
+                mov es:[bx], offset my_timer_int
                 mov es:[bx+2], cs
                 sti
 
