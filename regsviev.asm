@@ -115,7 +115,7 @@ clean_place		proc
 ;Copies videomem to buffer
 ;Entry:		cs:di--> destination buffer
 ;Exit:		--
-;Distr:
+;Distr:		CX, SI
 ;------------------------------------------------------------------------
 video_cpy		proc 
 
@@ -143,7 +143,7 @@ video_cpy		proc
 ;Actualize save and draw buffer
 ;Entry:		--
 ;Exit:		--
-;Distr:
+;Distr:		CX, DI, AX, SI, BX
 ;------------------------------------------------------------------------
 act_buffers		proc 
 
