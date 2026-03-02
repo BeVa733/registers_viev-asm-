@@ -260,81 +260,94 @@ regstr:         db 'AX:0000#BX:0000#CX:0000#DX:0000#SI:0000#DI:0000#BP:0000#SP:0
 ;Expected:	label regstr --> string 'AX:0000#BX:0000' etc
 ;			all registers in stack from the interrupt function (my_kb_int)
 ;-------------------------------------------------------------------------
-
-set_regs_val	proc
+set_regs_val    proc
 
                 push bp
                 mov bp, sp
 
-                ; [bp+22] = cs (before interruption)
-                ; [bp+20] = ip (before interruption)
-                ; [bp+18] = ax
-                ; [bp+16] = bx
-                ; [bp+14] = cx
-                ; [bp+12] = dx
-                ; [bp+10] = si
-                ; [bp+8]  = di
-                ; [bp+6]  = ds
-                ; [bp+4]  = es
-				; [bp+2]  = ret_addr in my_kb_int
-                ; [bp]    = bp (in this function)
-				
-                mov ax, [bp+18]
+				; [bp+24] = cs (before interruption)
+                ; [bp+22] = ip (before interruption)
+                ; [bp+20] = ax
+                ; [bp+18] = bx
+                ; [bp+16] = cx
+                ; [bp+14] = dx
+                ; [bp+12] = si
+                ; [bp+10] = di
+                ; [bp+8]  = ds
+                ; [bp+6]  = es
+				; [bp+4]  = bp
+                ; [bp+2]  = ret_addr in my_kb_int
+				; [bp]    = bp(this function)
+
+				;AX
+                mov ax, [bp + 20]
                 mov di, offset regstr + 3
                 call hex2ascii
 
-                mov ax, [bp+16]
+                ; BX
+                mov ax, [bp + 18]
                 mov di, offset regstr + 11
                 call hex2ascii
 
-                mov ax, [bp+14]
+                ; CX
+                mov ax, [bp + 16]
                 mov di, offset regstr + 19
                 call hex2ascii
 
-                mov ax, [bp+12]
+                ; DX
+                mov ax, [bp + 14]
                 mov di, offset regstr + 27
                 call hex2ascii
 
-                mov ax, [bp+10]
+                ; SI
+                mov ax, [bp + 12]
                 mov di, offset regstr + 35
                 call hex2ascii
 
-                mov ax, [bp+8]
+                ; DI
+                mov ax, [bp + 10]
                 mov di, offset regstr + 43
                 call hex2ascii
 
-                mov ax, [bp]
+                ; BP
+                mov ax, [bp + 4]
                 mov di, offset regstr + 51
                 call hex2ascii
 
+                ; SP 
                 mov ax, bp
-                add ax, 26					; SP = bp + 26 (24 is flags)
+                add ax, 28
                 mov di, offset regstr + 59
                 call hex2ascii
 
-                mov ax, [bp+6]
+                ; DS
+                mov ax, [bp + 8]
                 mov di, offset regstr + 67
                 call hex2ascii
 
-                mov ax, [bp+4]
+                ; ES
+                mov ax, [bp + 6]
                 mov di, offset regstr + 75
                 call hex2ascii
 
+                ; SS
                 mov ax, ss
                 mov di, offset regstr + 83
                 call hex2ascii
 
-                mov ax, [bp+22]
+                ; CS
+                mov ax, [bp + 24]
                 mov di, offset regstr + 91
                 call hex2ascii
 
-                mov ax, [bp+20]
+                ; IP
+                mov ax, [bp + 22]
                 mov di, offset regstr + 99
                 call hex2ascii
 
-				pop bp
+                pop bp
                 ret
-				endp
+set_regs_val    endp
 
 ;---------------------------------------------------------------------------
 ;Cast 16-bit value to 4 hex symbols and write it to DS:DI 
