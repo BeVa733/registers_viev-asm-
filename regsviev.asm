@@ -3,7 +3,7 @@
 
 org 100h
 
-atr		equ 04h
+atr				equ 04h
 
 Start:
                 call install
@@ -40,7 +40,32 @@ my_kb_int       proc
                 in al, 60h
 				; mov es:[bx], ax
 
-				cmp al, 87d
+				cmp al, 81d 
+				jnz skip2
+				mov al, [need_new]
+				xor al, 01d
+				mov [need_new], al
+
+				pop bp 
+				pop es
+                pop ds
+                pop di
+                pop si
+                pop dx
+                pop cx
+                pop bx
+                pop ax
+
+				in al, 61h
+				or al, 80h
+				out 61h, al 
+				and al, not 80h 
+				out 61h, al 
+				mov al, 20h 
+				out 20h, al
+				iret 
+
+skip2:			cmp al, 87d
 				jnz skip_regs
 
 				cmp active_flag, 1
@@ -75,11 +100,13 @@ skip_regs:
 				mov al, 128d
 				out 60h, al
 
+				cli
 				cmp cs:[active_flag], 0
 				je skip_clean
 
 				call clean_place
 				mov cs:[active_flag], 0
+				sti
 
 skip_clean:		pop bp 
 				pop es
@@ -92,7 +119,7 @@ skip_clean:		pop bp
                 pop ax
 
                 jmp dword ptr cs:[old_int9h]
-                ret
+EOIkb:          ret
                 endp
 
 ;------------------------------------------------------------------------
@@ -211,7 +238,7 @@ my_timer_int	proc
 
 				cmp need_new, 1
 				jne timer_exit
-
+				
 				call set_regs_val
 				mov ax, 0b800h
 				mov es, ax
@@ -572,7 +599,7 @@ metka4:
 old_int9h       dd ?
 old_int8h       dd ?
 active_flag     db 0
-need_new		db 1
+need_new		db 0
 save_buffer     db 4000 dup (?)
 draw_buffer     db 4000 dup (?)
 
