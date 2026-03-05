@@ -43,7 +43,13 @@ my_kb_int       proc
 				cmp al, 87d
 				jnz skip_regs
 
-				mov di, offset save_buffer
+				cmp active_flag, 1
+				jne skip_destr
+
+				call clean_place
+				mov [active_flag], 0
+
+skip_destr:		mov di, offset save_buffer
 				call video_cpy
 
 				call set_regs_val
@@ -202,6 +208,16 @@ my_timer_int	proc
     			jne timer_exit
 
 				call act_buffers
+
+				cmp need_new, 1
+				jne timer_exit
+
+				call set_regs_val
+				mov ax, 0b800h
+				mov es, ax
+				call print_text
+				mov di, offset draw_buffer
+				call video_cpy
 
 timer_exit:
 				pop bp
@@ -556,7 +572,8 @@ metka4:
 old_int9h       dd ?
 old_int8h       dd ?
 active_flag     db 0
-save_buffer     db 4000 dup (?) 		;442 - size of frame in bytes (13*17*2)
+need_new		db 1
+save_buffer     db 4000 dup (?)
 draw_buffer     db 4000 dup (?)
 
 EORP:              
